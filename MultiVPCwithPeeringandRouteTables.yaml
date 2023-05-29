@@ -1,0 +1,557 @@
+Resources:
+  Vpc1:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Vpc1-Production
+  Vpc1Igw:
+    Type: AWS::EC2::InternetGateway
+
+  Vpc1GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !GetAtt Vpc1Igw.InternetGatewayId
+      VpcId: !GetAtt Vpc1.VpcId
+
+#Create 4 separate VPCs with different CIDR ranges
+  Vpc1:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Vpc1-Production
+
+  Vpc2:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.2.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Vpc2-Development
+  Vpc3:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.3.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Vpc3-Testing
+  Vpc4:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.4.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Vpc4-Shared
+
+#Create 6 peering connections (one for each VPC connections)
+
+  PeeringConnection1to2:
+    Type: 'AWS::EC2::VPCPeeringConnection'
+    Properties:
+      PeerVpcId: !GetAtt Vpc2.VpcId
+      VpcId: !GetAtt Vpc1.VpcId
+      Tags:
+        - Key: Name
+          Value: Peering1-2
+
+  PeeringConnection1to3:
+    Type: 'AWS::EC2::VPCPeeringConnection'
+    Properties:
+      PeerVpcId: !GetAtt Vpc3.VpcId
+      VpcId: !GetAtt Vpc1.VpcId
+      Tags:
+        - Key: Name
+          Value: Peering1-3
+
+  PeeringConnection1to4:
+    Type: 'AWS::EC2::VPCPeeringConnection'
+    Properties:
+      PeerVpcId: !GetAtt Vpc4.VpcId
+      VpcId: !GetAtt Vpc1.VpcId
+      Tags:
+        - Key: Name
+          Value: Peering1-4
+
+  PeeringConnection2to3:
+    Type: 'AWS::EC2::VPCPeeringConnection'
+    Properties:
+      PeerVpcId: !GetAtt Vpc3.VpcId
+      VpcId: !GetAtt Vpc2.VpcId
+      Tags:
+        - Key: Name
+          Value: Peering2-3
+
+  PeeringConnection2to4:
+    Type: 'AWS::EC2::VPCPeeringConnection'
+    Properties:
+      PeerVpcId: !GetAtt Vpc4.VpcId
+      VpcId: !GetAtt Vpc2.VpcId
+      Tags:
+        - Key: Name
+          Value: Peering2-4
+
+  PeeringConnection3to4:
+    Type: 'AWS::EC2::VPCPeeringConnection'
+    Properties:
+      PeerVpcId: !GetAtt Vpc4.VpcId
+      VpcId: !GetAtt Vpc3.VpcId
+      Tags:
+        - Key: Name
+          Value: Peering3-4
+
+#Create public and private subnet in VPC 1 then just private subnets in each other VPC
+  PublicSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref Vpc1
+      CidrBlock: 10.1.1.0/24
+      AvailabilityZone: eu-west-2a
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1
+
+  PrivateSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref Vpc1
+      CidrBlock: 10.1.2.0/24
+      AvailabilityZone: eu-west-2a
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet1
+
+  PrivateSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref Vpc2
+      CidrBlock: 10.2.1.0/24
+      AvailabilityZone: eu-west-2a
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet2
+
+  PrivateSubnet3:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref Vpc3
+      CidrBlock: 10.3.1.0/24
+      AvailabilityZone: eu-west-2a
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet3
+
+  PrivateSubnet4:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref Vpc4
+      CidrBlock: 10.4.1.0/24
+      AvailabilityZone: eu-west-2a
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet4
+
+#Launch template SPECIFICALLY FOR eu-west-2 region. If launching in another region thi image id needs to change
+  MyLaunchTemplate:
+    Type: 'AWS::EC2::LaunchTemplate'
+    Properties:
+      LaunchTemplateName: KenobiTestLaunchTemplate
+      LaunchTemplateData:
+        InstanceType: t2.micro
+        ImageId: ami-0d76271a8a1525c1a
+
+#Create security group for each instances. Group 1 allows SSH from anywhere. Others only from bastion host
+  SecurityGroupPing1:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: Bastion Security GroupPing1
+      GroupDescription: Security group to allow ping all VPCs
+      VpcId: !GetAtt Vpc1.VpcId
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.0.0/8
+        - IpProtocol: TCP
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: SecurityGroupPing1
+
+  SecurityGroupPing2:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: Server Security GroupPing2
+      GroupDescription: Security group to allow ping all directions
+      VpcId: !GetAtt Vpc2.VpcId
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.0.0/8
+        - IpProtocol: TCP
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.1.1.249/32
+      Tags:
+        - Key: Name
+          Value: SecurityGroupPing2
+
+
+  SecurityGroupPing3:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: Server Security GroupPing3
+      GroupDescription: Security group to allow ping all directions
+      VpcId: !GetAtt Vpc3.VpcId
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.0.0/8
+        - IpProtocol: TCP
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.1.1.249/32
+      Tags:
+        - Key: Name
+          Value: SecurityGroupPing3
+
+  SecurityGroupPing4:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: Server Security GroupPing4
+      GroupDescription: Security group to allow ping all directions
+      VpcId: !GetAtt Vpc4.VpcId
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.0.0/8
+        - IpProtocol: TCP
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.1.1.249/32
+      Tags:
+        - Key: Name
+          Value: SecurityGroupPing4
+
+
+#Create servers. NEED TO CREATE KEY PAIR MANUALLY (for both bastion and other instances)
+
+  BastionHost:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      AvailabilityZone: eu-west-2a
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MyLaunchTemplate
+        Version: !GetAtt MyLaunchTemplate.LatestVersionNumber
+      SubnetId: !GetAtt PublicSubnet1.SubnetId
+      PrivateIpAddress: 10.1.1.249
+      KeyName: Bastion-Key-Pair
+      SecurityGroupIds:
+        - !GetAtt SecurityGroupPing1.GroupId
+      Tags:
+        - Key: Name
+          Value: Bastion Host
+
+  ProductionServer:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      AvailabilityZone: eu-west-2a
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MyLaunchTemplate
+        Version: !GetAtt MyLaunchTemplate.LatestVersionNumber
+      SubnetId: !GetAtt PrivateSubnet1.SubnetId
+      PrivateIpAddress: 10.1.2.249
+      KeyName: Servers-Key-Pair
+      SecurityGroupIds:
+        - !GetAtt SecurityGroupPing1.GroupId
+      Tags:
+        - Key: Name
+          Value: Production Server
+
+  SharedServer:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      AvailabilityZone: eu-west-2a
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MyLaunchTemplate
+        Version: !GetAtt MyLaunchTemplate.LatestVersionNumber
+      SubnetId: !GetAtt PrivateSubnet4.SubnetId
+      PrivateIpAddress: 10.4.1.22
+      KeyName: Servers-Key-Pair
+      SecurityGroupIds:
+        - !GetAtt SecurityGroupPing4.GroupId
+      Tags:
+        - Key: Name
+          Value: Shared Server
+
+  TestServer:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      AvailabilityZone: eu-west-2a
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MyLaunchTemplate
+        Version: !GetAtt MyLaunchTemplate.LatestVersionNumber
+      SubnetId: !GetAtt PrivateSubnet3.SubnetId
+      PrivateIpAddress: 10.3.1.129
+      KeyName: Servers-Key-Pair
+      SecurityGroupIds:
+        - !GetAtt SecurityGroupPing3.GroupId
+      Tags:
+        - Key: Name
+          Value: Test Server
+
+  DevServer:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      AvailabilityZone: eu-west-2a
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MyLaunchTemplate
+        Version: !GetAtt MyLaunchTemplate.LatestVersionNumber
+      SubnetId: !GetAtt PrivateSubnet2.SubnetId
+      PrivateIpAddress: 10.2.1.29
+      KeyName: Servers-Key-Pair
+      SecurityGroupIds:
+        - !GetAtt SecurityGroupPing2.GroupId
+      Tags:
+        - Key: Name
+          Value: Dev Server
+
+#Create route tables to allow traffic routing
+
+  PublicSubnet1RouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !GetAtt Vpc1.VpcId
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1RouteTable
+
+  PublicSubnet1IgwRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PublicSubnet1RouteTable.RouteTableId
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !GetAtt Vpc1Igw.InternetGatewayId
+
+
+  PublicSubnet1RouteVpc1to2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PublicSubnet1RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc2.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection1to2.Id
+
+  PublicSubnet1RouteVpc1to3:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PublicSubnet1RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc3.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection1to3.Id
+
+  PublicSubnet1RouteVpc1to4:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PublicSubnet1RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc4.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection1to4.Id
+
+
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !GetAtt PublicSubnet1RouteTable.RouteTableId
+      SubnetId: !GetAtt PublicSubnet1.SubnetId
+
+
+
+
+#The next set is for route table in VPC1 private subnet
+
+
+
+  PrivateSubnet1RouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !GetAtt Vpc1.VpcId
+      Tags:
+        - Key: Name
+          Value: PrivateSub1RouteTable
+
+
+  PrivateSubnet1RouteVpc1to2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet1RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc2.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection1to2.Id
+
+  PrivateSubnet1RouteVpc1to3:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet1RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc3.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection1to3.Id
+
+  PrivateSubnet1RouteVpc1to4:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet1RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc4.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection1to4.Id
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet1RouteTable.RouteTableId
+      SubnetId: !GetAtt PrivateSubnet1.SubnetId
+
+
+
+#The next set is for route table in VPC2 private subnet
+
+
+  PrivateSubnet2RouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !GetAtt Vpc2.VpcId
+      Tags:
+        - Key: Name
+          Value: PrivateSub2RouteTable
+
+
+  PrivateSubnet2RouteVpc2to1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet2RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc1.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection1to2.Id
+
+  PrivateSubnet2RouteVpc2to3:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet2RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc3.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection2to3.Id
+
+  PrivateSubnet2RouteVpc2to4:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet2RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc4.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection2to4.Id
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet2RouteTable.RouteTableId
+      SubnetId: !GetAtt PrivateSubnet2.SubnetId
+
+
+#The next set is for route table in VPC3 private subnet
+
+
+  PrivateSubnet3RouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !GetAtt Vpc3.VpcId
+      Tags:
+        - Key: Name
+          Value: PrivateSub3RouteTable
+
+
+  PrivateSubnet3RouteVpc3to1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet3RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc1.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection1to3.Id
+
+  PrivateSubnet3RouteVpc3to2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet3RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc2.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection2to3.Id
+
+  PrivateSubnet2RouteVpc3to4:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet3RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc4.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection3to4.Id
+
+  PrivateSubnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet3RouteTable.RouteTableId
+      SubnetId: !GetAtt PrivateSubnet3.SubnetId
+
+
+
+#The next set is for route table in VPC4 private subnet
+
+
+  PrivateSubnet4RouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !GetAtt Vpc4.VpcId
+      Tags:
+        - Key: Name
+          Value: PrivateSub4RouteTable
+
+
+  PrivateSubnet4RouteVpc4to1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet4RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc1.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection1to4.Id
+
+  PrivateSubnet4RouteVpc4to2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet4RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc2.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection2to4.Id
+
+  PrivateSubnet4RouteVpc3to4:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet4RouteTable.RouteTableId
+      DestinationCidrBlock: !GetAtt Vpc3.CidrBlock
+      VpcPeeringConnectionId: !GetAtt PeeringConnection3to4.Id
+
+  PrivateSubnet4RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !GetAtt PrivateSubnet4RouteTable.RouteTableId
+      SubnetId: !GetAtt PrivateSubnet4.SubnetId
+
+#Output Public IP of bastion host for easier access to SSH later.
+
+Outputs:
+  BastionHostPublicIp:
+    Value: !GetAtt BastionHost.PublicIp
